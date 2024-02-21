@@ -1,0 +1,235 @@
+// arduino esp32 
+// use shiftregister 74HC595 
+// and 4 digit 7 Segment display
+// each digit is switched on via a npn transistor
+
+// ST_CP of 74HC595 = LATCH 
+int latchPin = 18;      // PIN 12 RCLK = LATCH = Register clock = storage register clock in = ST_CP
+
+// SRCLK = SH_CP of 74HC595 = clockPin = shift reg clock in
+int clockPin = 19;      // PIN 11 SRCLK = clockPin = SH_CP = shift reg clock in
+
+// DS of 74HC595
+int dataPin = 16;       // PIN 14 DS = Serial data in
+
+// OE of 74HC595 = output enable 
+int OE = 17;            // PIN 13 OE = Output enable. If LOW OUTPUT is disabled. If HIGH OUTPUT enabled 
+
+// MR = SRCLR = MasterReset
+int MasterReset = 25;   // PIN 10 MR = SRCLR : clears the memory of the shift register
+
+// digit0 ... digit3 are enabled via npn transistor
+const int digit0 = 26;  // 7-Segment pin D4 ?
+const int digit1 = 27;  // 7-Segment pin D3 ?
+const int digit2 = 32;  // 7-Segment pin D2 ?
+const int digit3 = 33;  // 7-Segment pin D1 ?
+
+int potPin = 5; // Poti to pin 5 on esp32
+u_int16_t delay_from_poti = 0;
+
+// array with the bits
+// decimal point "." = B00000001
+byte numberToDisplay[] = {
+  B11111100,  // 0
+  B01100000,  // 1
+  B11011010,  // 2
+  B11110010,  // 3
+  B01100110,  // 4
+  B10110110,  // 5
+  B00111110,  // 6
+  B11100000,  // 7
+  B11111110,  // 8
+  B11110110,  // 9
+  B00000000   // 10 = empty
+};
+
+int i = 0;
+
+int ones = 0;
+int tens = 0;
+int hundreds = 0;
+int thousands = 0;
+
+unsigned long lastMillis = 0;
+unsigned long lastMillisPot = 0;
+u_int16_t poti_val = 0;
+
+void setup() {
+  //Serial.begin(9600); // for debugging
+
+// with potentiometer the speed of the counting can be changed
+  pinMode(potPin, INPUT);
+  
+//set pins to output so you can control the shift register
+  pinMode(latchPin, OUTPUT);
+  pinMode(clockPin, OUTPUT);
+  pinMode(dataPin, OUTPUT);
+  pinMode(OE, OUTPUT);
+  digitalWrite(OE, LOW);
+  pinMode(MasterReset, OUTPUT);
+  digitalWrite(MasterReset, HIGH);  // if LOW memory of shift reg cleared
+  pinMode(digit0, OUTPUT);
+  digitalWrite(digit0, LOW);
+  pinMode(digit1, OUTPUT);
+  digitalWrite(digit1, LOW);
+  pinMode(digit2, OUTPUT);
+  digitalWrite(digit2, LOW);
+  pinMode(digit3, OUTPUT);
+  digitalWrite(digit3, LOW);
+}
+
+void loop() {
+// choose the define what you like
+// #define mode_show_number
+// #define mode_each_digit_random
+// #define mode_full_int_random
+#define mode_count_up
+// #define mode_count_up_with_poti_change
+
+#ifdef mode_show_number
+  i = 2;
+  ones = i % 10;
+  tens = ((i / 10) % 10);
+  hundreds = ((i / 100) % 10);
+  thousands = i / 1000;
+  ones = 2;
+  tens = 10;        // 10 is B00000000 = empty
+  hundreds = 10;    // 10 is B00000000 = empty
+  thousands = 10;   // 10 is B00000000 = empty
+
+#endif
+
+#ifdef mode_each_digit_random
+  // each second = 1000 ms random nr between 0 and 1
+  if ((millis() - lastMillis) >= 300) {
+    lastMillis = millis();
+
+    // show 0 or 1 on each digit
+    ones = random(0, 2);
+    tens = random(0, 2);
+    hundreds = random(0, 2);
+    thousands = random(0, 2);
+  }
+#endif
+
+#ifdef mode_full_int_random
+  // https://forum.arduino.cc/t/split-a-4-digit-int-into-4-variables/110821/5
+  if ((millis() - lastMillis) >= 300) {
+    lastMillis = millis();
+    // show random nr on display between 0 (inclusiv) and 9999 (inclusiv)
+    i = random(0, 10000);
+    //Serial.println(i);
+    if (i >= 9999) {
+      i = 0;
+    }
+  }
+  ones = i % 10;
+  tens = ((i / 10) % 10);
+  hundreds = ((i / 100) % 10);
+  thousands = i / 1000;
+#endif
+
+#ifdef mode_count_up
+  // https://forum.arduino.cc/t/split-a-4-digit-int-into-4-variables/110821/5
+  if ((millis() - lastMillis) >= 10) {
+    lastMillis = millis();
+    // show random nr on display between 0 (inclusiv) and 9999 (inclusiv)
+    i++;
+    //Serial.println(i);
+    if (i >= 9999) {
+      i = 0;
+    }
+  }
+  ones = i % 10;
+  tens = ((i / 10) % 10);
+  hundreds = ((i / 100) % 10);
+  thousands = i / 1000;
+#endif
+
+
+#ifdef mode_count_up_with_poti_change
+  if ((millis() - lastMillisPot) >= 2000) {
+    poti_val = analogRead(potPin);
+    lastMillisPot = millis();
+    delay_from_poti = map(poti_val,0, 4096, 1, 2000); // delay between 1 ms and 2 secs
+    delay_from_poti = random(8, 500); // for testing
+  }
+
+  if ((millis() - lastMillis) >= delay_from_poti) {
+    lastMillis = millis();
+    // show random nr on display between 0 (inclusiv) and 9999 (inclusiv)
+    i++;
+    //Serial.println(i);
+    if (i >= 9999) {
+      i = 0;
+    }
+  }
+  // https://forum.arduino.cc/t/split-a-4-digit-int-into-4-variables/110821/5
+  ones = i % 10;
+  tens = ((i / 10) % 10);
+  hundreds = ((i / 100) % 10);
+  thousands = i / 1000;
+#endif
+/*    Serial Print */
+
+/*  Serial.println(i);
+  Serial.println(ones);
+  Serial.println(tens);
+  Serial.println(hundreds);
+  Serial.println(thousands);
+  Serial.println("------");
+*/
+
+
+/*  delay between the shiftOut to digits  */
+#define pause0 1
+
+  /* shift data out to each digit via shiftregister 74HC585 */
+  // digit0 = first Digit  
+  digitalWrite(latchPin, LOW);
+  digitalWrite(digit0, LOW);  // switch off all digits to avoid ghosting
+  digitalWrite(digit1, LOW);
+  digitalWrite(digit2, LOW);
+  digitalWrite(digit3, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, numberToDisplay[ones]);
+  digitalWrite(digit0, HIGH);
+  digitalWrite(latchPin, HIGH);
+
+  delay(pause0);
+
+  // digit1 = second Digit
+  digitalWrite(latchPin, LOW);
+  digitalWrite(digit0, LOW);  // switch off all digits to avoid ghosting
+  digitalWrite(digit1, LOW);
+  digitalWrite(digit2, LOW);
+  digitalWrite(digit3, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, numberToDisplay[tens]);
+  digitalWrite(digit1, HIGH);
+  digitalWrite(latchPin, HIGH);
+
+  delay(pause0);
+
+  // digit2 = third Digit
+  digitalWrite(latchPin, LOW);
+  digitalWrite(digit0, LOW);  // switch off all digits to avoid ghosting
+  digitalWrite(digit1, LOW);
+  digitalWrite(digit2, LOW);
+  digitalWrite(digit3, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, numberToDisplay[hundreds]);
+  digitalWrite(digit2, HIGH);
+  digitalWrite(latchPin, HIGH);
+
+  delay(pause0);
+  
+  // digit3 = fourth Digit
+  digitalWrite(latchPin, LOW);
+  digitalWrite(digit0, LOW);  // switch off all digits to avoid ghosting
+  digitalWrite(digit1, LOW);
+  digitalWrite(digit2, LOW);
+  digitalWrite(digit3, LOW);
+  shiftOut(dataPin, clockPin, LSBFIRST, numberToDisplay[thousands]);
+  digitalWrite(digit3, HIGH);
+  digitalWrite(latchPin, HIGH);
+  
+  delay(pause0);
+}
